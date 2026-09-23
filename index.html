@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MemePilot · Paper Bot</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#scanner"><span class="brand-mark">M</span><span>MemePilot</span></a>
+    <nav aria-label="Główna nawigacja">
+      <button class="nav-button active" data-view="scanner">Scanner</button>
+      <button class="nav-button" data-view="paper">Paper Trading</button>
+      <button class="nav-button" data-view="stats">Statystyki</button>
+      <button class="nav-button" data-view="settings">Bot Settings</button>
+    </nav>
+    <span id="connection">Łączenie…</span>
+    <div class="account-actions"><strong id="accountName"></strong><button id="logout" class="button ghost" type="button">Zmień konto</button></div>
+  </header>
+
+  <main>
+    <section class="view active" data-view-panel="scanner">
+      <div class="heading">
+        <div><span class="eyebrow">PUMP.FUN · LIVE</span><h1>Nowe coiny <i></i></h1><p>Strumień nowych tokenów i zmian market capu.</p></div>
+        <div class="counter"><strong id="count">0</strong><span id="countLabel">widocznych tokenów</span></div>
+      </div>
+      <div class="toolbar">
+        <label class="search-box"><span>⌕</span><input id="search" placeholder="Szukaj po adresie lub nazwie" autocomplete="off"></label>
+        <div class="market-filters">
+          <label class="mc-filter" for="minMc"><span>Min. market cap · USD</span><input id="minMc" type="number" min="0" step="any" inputmode="decimal" placeholder="Bez minimum" aria-describedby="filterError"></label>
+          <button class="button ghost" id="clearFilters" type="button" disabled>Wyczyść</button>
+        </div>
+        <span id="queue" title="Transakcje oczekujące na odczyt danych z Solany."></span>
+      </div>
+      <div id="filterError" role="alert"></div><div id="notice" role="status"></div>
+      <section class="feed">
+        <div class="columns"><span>TOKEN / ADRES</span><span>MARKET CAP</span><span>ŹRÓDŁO</span><span>UTWORZONO</span><span>TRANSAKCJA</span></div>
+        <div id="tokens"><div class="empty">Oczekiwanie na nowe tokeny…</div></div>
+      </section>
+    </section>
+
+    <section class="view" data-view-panel="paper">
+      <div class="paper-head">
+        <div><span class="eyebrow">WIRTUALNY PORTFEL</span><h1>Paper Trading</h1></div>
+        <div class="bot-control">
+          <span class="bot-status stopped" id="botStatus"><i></i><b>Stopped</b></span>
+          <button class="button success" data-bot-status="running">Start</button>
+          <button class="button" data-bot-status="paused">Pauza</button>
+          <button class="button danger-soft" data-bot-status="stopped">Stop</button>
+        </div>
+      </div>
+      <div class="paper-wallet-bar">
+        <label for="paperWalletSelect">Testowany portfel</label>
+        <select id="paperWalletSelect" aria-label="Wybierz portfel paper"></select>
+        <button id="newPaperWallet" class="button accent" type="button">+ Nowy portfel</button>
+      </div>
+      <div id="paperMessage" class="message" role="status"></div>
+      <div class="stat-grid">
+        <article class="stat primary"><span>Wartość portfela</span><strong id="paperEquity">$0.00</strong><small id="paperTotalPnl">$0.00</small></article>
+        <article class="stat"><span>Wolne środki</span><strong id="paperCash">$0.00</strong><small id="paperCashSol">— SOL</small></article>
+        <article class="stat"><span>Otwarte pozycje</span><strong id="paperPositionsValue">$0.00</strong><small id="paperPositionCount">0 pozycji</small></article>
+        <article class="stat"><span>Realized PnL</span><strong id="paperRealized">$0.00</strong><small>Zamknięte pozycje</small></article>
+        <article class="stat"><span>Unrealized PnL</span><strong id="paperUnrealized">$0.00</strong><small>Aktualna wycena</small></article>
+      </div>
+
+      <div class="paper-layout">
+        <section class="panel activity-panel">
+          <div class="panel-tabs" role="tablist">
+            <button class="panel-tab active" data-paper-tab="positions">Pozycje <span id="positionBadge">0</span></button>
+            <button class="panel-tab" data-paper-tab="history">Historia <span id="historyBadge">0</span></button>
+            <button class="panel-tab" data-paper-tab="logs">Dziennik</button>
+          </div>
+          <div id="positionsPanel" class="table-wrap paper-tab-panel"></div>
+          <div id="historyPanel" class="table-wrap paper-tab-panel hidden"></div>
+          <div id="logsPanel" class="table-wrap paper-tab-panel hidden"></div>
+        </section>
+        <aside class="panel wallet-panel">
+          <div><span class="eyebrow">PORTFEL TESTOWY</span><h2>Saldo początkowe</h2><p>Zmiana salda rozpoczyna nową, czystą sesję.</p></div>
+          <form id="walletForm">
+            <div class="amount-row"><input id="walletBalance" type="number" min="0.01" step="any" value="1000" required><select id="walletCurrency"><option value="USD">USD</option><option value="SOL">SOL</option></select></div>
+            <small id="walletConversion">—</small>
+            <button class="button accent wide" type="submit">Ustaw i zresetuj</button>
+          </form>
+          <button id="clearSession" class="button ghost wide" type="button">Wyczyść sesję</button>
+        </aside>
+      </div>
+    </section>
+
+    <section class="view" data-view-panel="stats">
+      <div class="stats-head">
+        <div><span class="eyebrow">WYNIKI BOTÓW</span><h1>Statystyki</h1></div>
+        <label class="stats-wallet-picker" for="statsWalletSelect"><span>Portfel</span><select id="statsWalletSelect" aria-label="Portfel do statystyk"></select></label>
+      </div>
+      <div id="statsMessage" class="message" role="status"></div>
+      <div class="stats-summary">
+        <article class="panel stats-number"><span>Łączny wynik</span><strong id="statsTotalPnl">—</strong><small>W tym otwarte pozycje</small></article>
+        <article class="panel stats-number"><span>Zrealizowany PnL</span><strong id="statsRealized">—</strong><small>Po sprzedażach</small></article>
+        <article class="panel stats-number"><span>Niezrealizowany PnL</span><strong id="statsUnrealized">—</strong><small>Ostatnia dostępna wycena</small></article>
+        <article class="panel stats-number"><span>Win rate</span><strong id="statsWinRate">—</strong><small id="statsWinLoss">Zamknięte pozycje</small></article>
+      </div>
+      <div class="stats-layout">
+        <section class="panel calendar-panel">
+          <div class="stats-panel-head"><div><h2>Kalendarz wyników</h2><p>Zrealizowany PnL z każdego dnia · czas polski</p></div><div class="calendar-nav"><button id="prevStatsMonth" class="button ghost" type="button" aria-label="Poprzedni miesiąc">‹</button><strong id="statsMonthLabel"></strong><button id="nextStatsMonth" class="button ghost" type="button" aria-label="Następny miesiąc">›</button></div></div>
+          <div class="calendar-weekdays"><span>Pn</span><span>Wt</span><span>Śr</span><span>Cz</span><span>Pt</span><span>So</span><span>Nd</span></div>
+          <div id="statsCalendar" class="stats-calendar"></div>
+          <div id="statsDayDetail" class="stats-day-detail">Wybierz dzień, żeby zobaczyć szczegóły.</div>
+        </section>
+        <section class="panel chart-panel">
+          <div class="stats-panel-head"><div><h2>Jak idzie botowi</h2><p>Skumulowany zrealizowany PnL · ostatnie 30 dni</p></div></div>
+          <div class="chart-current"><strong id="chartResult">—</strong><span>ostatnie 30 dni</span></div>
+          <svg id="statsChart" viewBox="0 0 600 230" role="img" aria-label="Wykres skumulowanego zrealizowanego PnL"></svg>
+          <div class="chart-axis"><span id="chartStart"></span><span id="chartEnd"></span></div>
+        </section>
+      </div>
+      <section class="panel mc-stats-panel">
+        <div class="stats-panel-head"><div><h2>Wejścia według market capu</h2><p>Udział wejść oraz wynik pozycji w każdym przedziale.</p></div><span id="statsEntriesCount" class="stats-total-count">0 wejść</span></div>
+        <div id="statsBuckets" class="stats-buckets"></div>
+      </section>
+    </section>
+
+    <section class="view" data-view-panel="settings">
+      <div class="settings-head"><div><span class="eyebrow">STRATEGIA I REALIZM</span><h1>Bot Settings</h1><p>Puste pole oznacza, że dany warunek nie jest brany pod uwagę.</p></div><button class="button accent" form="strategyForm" type="submit">Zapisz ustawienia</button></div>
+      <div class="settings-wallet-label"><label for="settingsWalletSelect">Ustawienia bota:</label><select id="settingsWalletSelect" aria-label="Wybierz bota do ustawienia"></select><strong id="settingsWalletName">Paper 1</strong></div>
+      <div id="settingsMessage" class="message" role="status"></div>
+      <form id="strategyForm" class="settings-grid">
+        <section class="panel settings-card wide-settings settings-order-1">
+          <div class="section-title"><span>01</span><div><h2>Wejście</h2><p>Wielkość pozycji i filtry BUY.</p></div></div>
+          <div class="field-grid">
+            <label><span>Kwota wejścia</span><div class="input-unit"><input name="entryAmountUsd" type="number" min="0.01" step="any" required><b>USD</b></div></label>
+            <label><span>Maks. otwartych pozycji</span><input name="maxOpenPositions" type="number" min="1" max="100" step="1" required></label>
+            <label><span>Min. market cap</span><div class="input-unit"><input name="minMarketCapUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Maks. market cap</span><div class="input-unit"><input name="maxMarketCapUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Min. cena tokena</span><div class="input-unit"><input name="minPriceUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Maks. cena tokena</span><div class="input-unit"><input name="maxPriceUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Min. FDV</span><div class="input-unit"><input name="minFdvUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Maks. FDV</span><div class="input-unit"><input name="maxFdvUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Min. MC przy starcie</span><div class="input-unit"><input name="minLaunchMarketCapUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Maks. MC przy starcie</span><div class="input-unit"><input name="maxLaunchMarketCapUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Maks. wzrost od startu</span><div class="input-unit"><input name="maxLaunchGrowthPercent" type="number" min="0" step="any"><b>%</b></div></label>
+            <label><span>Min. postęp bonding curve</span><div class="input-unit"><input name="minBondingProgressPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Maks. postęp bonding curve</span><div class="input-unit"><input name="maxBondingProgressPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Etap tokena</span><select name="migrationState"><option value="">Dowolny</option><option value="0">Bonding curve</option><option value="1">Po migracji</option></select></label>
+            <label><span>Min. wiek tokena</span><div class="input-unit"><input name="minAgeSeconds" type="number" min="0" step="any"><b>s</b></div></label>
+            <label><span>Maks. wiek tokena</span><div class="input-unit"><input name="maxAgeSeconds" type="number" min="0" step="any"><b>s</b></div></label>
+            <label><span>Min. wiek pary DEX</span><div class="input-unit"><input name="minDexPairAgeMinutes" type="number" min="0" step="any"><b>min</b></div></label>
+            <label><span>Maks. wiek pary DEX</span><div class="input-unit"><input name="maxDexPairAgeMinutes" type="number" min="0" step="any"><b>min</b></div></label>
+          </div>
+          <label class="check"><input name="onePositionPerToken" type="checkbox"><span><b>Jeden zakup tokena na sesję</b><small>Bot nie wróci do tokena po jego sprzedaży.</small></span></label>
+        </section>
+
+        <section class="panel settings-card settings-order-2">
+          <div class="section-title"><span>02</span><div><h2>Wyjście</h2><p>Reguły automatycznego SELL.</p></div></div>
+          <div class="field-grid">
+            <label><span>Take profit</span><div class="input-unit"><input name="takeProfitPercent" type="number" min="0" step="any"><b>%</b></div></label>
+            <label><span>Częściowy take profit przy zysku</span><div class="input-unit"><input name="partialTakeProfitPercent" type="number" min="0" step="any" placeholder="Wyłączone"><b>%</b></div></label>
+            <label><span>Sprzedaj z pozycji</span><div class="input-unit"><input name="partialSellPercent" type="number" min="0.01" max="100" step="any" placeholder="Np. 25"><b>%</b></div></label>
+            <label><span>Stop loss</span><div class="input-unit"><input name="stopLossPercent" type="number" min="0" step="any"><b>%</b></div></label>
+            <label><span>Trailing stop</span><div class="input-unit"><input name="trailingStopPercent" type="number" min="0" step="any"><b>%</b></div></label>
+            <label><span>Sprzedaj po braku ruchu</span><div class="input-unit"><input name="stagnationExitSeconds" type="number" min="1" step="1" placeholder="Wyłączone"><b>s</b></div></label>
+            <label><span>Ruch resetujący licznik</span><div class="input-unit"><input name="stagnationMovementPercent" type="number" min="0.01" step="any"><b>%</b></div></label>
+            <label><span>Maks. czas pozycji</span><div class="input-unit"><input name="maxHoldSeconds" type="number" min="0" step="any"><b>s</b></div></label>
+          </div>
+        </section>
+
+        <section class="panel settings-card wide-settings settings-order-6">
+          <div class="section-title"><span>06</span><div><h2>Dłuższe przedziały</h2><p>Dane z Dexscreenera. Ustaw dolny limit, górny limit albo oba.</p></div></div>
+          <div class="timeframe-grid">
+            <div class="timeframe-block"><strong>1 H</strong><div class="field-grid">
+              <label><span>Wolumen od</span><div class="input-unit"><input name="minVolume1hUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+              <label><span>Wolumen do</span><div class="input-unit"><input name="maxVolume1hUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+              <label><span>Transakcje od</span><input name="minTransactions1h" type="number" min="0" step="1"></label>
+              <label><span>Transakcje do</span><input name="maxTransactions1h" type="number" min="0" step="1"></label>
+              <label><span>Kupna od</span><input name="minBuys1h" type="number" min="0" step="1"></label>
+              <label><span>Kupna do</span><input name="maxBuys1h" type="number" min="0" step="1"></label>
+              <label><span>Sprzedaże od</span><input name="minSells1h" type="number" min="0" step="1"></label>
+              <label><span>Sprzedaże do</span><input name="maxSells1h" type="number" min="0" step="1"></label>
+              <label><span>Zmiana od</span><div class="input-unit"><input name="minPriceChange1h" type="number" step="any"><b>%</b></div></label>
+              <label><span>Zmiana do</span><div class="input-unit"><input name="maxPriceChange1h" type="number" step="any"><b>%</b></div></label>
+            </div></div>
+            <div class="timeframe-block"><strong>6 H</strong><div class="field-grid">
+              <label><span>Wolumen od</span><div class="input-unit"><input name="minVolume6hUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+              <label><span>Wolumen do</span><div class="input-unit"><input name="maxVolume6hUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+              <label><span>Transakcje od</span><input name="minTransactions6h" type="number" min="0" step="1"></label>
+              <label><span>Transakcje do</span><input name="maxTransactions6h" type="number" min="0" step="1"></label>
+              <label><span>Kupna od</span><input name="minBuys6h" type="number" min="0" step="1"></label>
+              <label><span>Kupna do</span><input name="maxBuys6h" type="number" min="0" step="1"></label>
+              <label><span>Sprzedaże od</span><input name="minSells6h" type="number" min="0" step="1"></label>
+              <label><span>Sprzedaże do</span><input name="maxSells6h" type="number" min="0" step="1"></label>
+              <label><span>Zmiana od</span><div class="input-unit"><input name="minPriceChange6h" type="number" step="any"><b>%</b></div></label>
+              <label><span>Zmiana do</span><div class="input-unit"><input name="maxPriceChange6h" type="number" step="any"><b>%</b></div></label>
+            </div></div>
+            <div class="timeframe-block"><strong>24 H</strong><div class="field-grid">
+              <label><span>Wolumen od</span><div class="input-unit"><input name="minVolume24hUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+              <label><span>Wolumen do</span><div class="input-unit"><input name="maxVolume24hUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+              <label><span>Transakcje od</span><input name="minTransactions24h" type="number" min="0" step="1"></label>
+              <label><span>Transakcje do</span><input name="maxTransactions24h" type="number" min="0" step="1"></label>
+              <label><span>Kupna od</span><input name="minBuys24h" type="number" min="0" step="1"></label>
+              <label><span>Kupna do</span><input name="maxBuys24h" type="number" min="0" step="1"></label>
+              <label><span>Sprzedaże od</span><input name="minSells24h" type="number" min="0" step="1"></label>
+              <label><span>Sprzedaże do</span><input name="maxSells24h" type="number" min="0" step="1"></label>
+              <label><span>Zmiana od</span><div class="input-unit"><input name="minPriceChange24h" type="number" step="any"><b>%</b></div></label>
+              <label><span>Zmiana do</span><div class="input-unit"><input name="maxPriceChange24h" type="number" step="any"><b>%</b></div></label>
+            </div></div>
+          </div>
+        </section>
+
+        <section class="panel settings-card wide-settings settings-order-7">
+          <div class="section-title"><span>07</span><div><h2>Profil tokena</h2><p>Linki społecznościowe i aktywne boosty widoczne w Dexscreenerze.</p></div></div>
+          <div class="field-grid">
+            <label><span>Strona internetowa</span><select name="requireWebsite"><option value="">Bez znaczenia</option><option value="1">Wymagana</option></select></label>
+            <label><span>X / Twitter</span><select name="requireTwitter"><option value="">Bez znaczenia</option><option value="1">Wymagany</option></select></label>
+            <label><span>Telegram</span><select name="requireTelegram"><option value="">Bez znaczenia</option><option value="1">Wymagany</option></select></label>
+            <label><span>Uzupełniony profil</span><select name="requireProfile"><option value="">Bez znaczenia</option><option value="1">Wymagany</option></select></label>
+            <label><span>Min. aktywne boosty</span><input name="minActiveBoosts" type="number" min="0" step="1"></label>
+            <label><span>Maks. aktywne boosty</span><input name="maxActiveBoosts" type="number" min="0" step="1"></label>
+          </div>
+        </section>
+
+        <section class="panel settings-card wide-settings settings-order-8">
+          <div class="section-title"><span>08</span><div><h2>Holderzy</h2><p>Dane z kont tokena na blockchainie Solany; koncentracja obejmuje także pule i bonding curve. Puste pole wyłącza warunek.</p></div></div>
+          <div class="field-grid">
+            <label><span>Holderzy od</span><input name="minHolders" type="number" min="0" step="1"></label>
+            <label><span>Holderzy do</span><input name="maxHolders" type="number" min="0" step="1"></label>
+            <label><span>Największy holder od</span><div class="input-unit"><input name="minTopHolderPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Największy holder do</span><div class="input-unit"><input name="maxTopHolderPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Top 10 holderów od</span><div class="input-unit"><input name="minTop10HoldersPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Top 10 holderów do</span><div class="input-unit"><input name="maxTop10HoldersPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+          </div>
+        </section>
+
+        <section class="panel settings-card settings-order-3">
+          <div class="section-title"><span>03</span><div><h2>Symulacja wykonania</h2><p>Koszty i opóźnienie uwzględniane w każdym trade.</p></div></div>
+          <div class="field-grid">
+            <label><span>Fee sieciowe</span><div class="input-unit"><input name="networkFeeUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Fee platformy</span><div class="input-unit"><input name="platformFeePercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Slippage · limit ruchu ceny</span><div class="input-unit"><input name="slippagePercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Price impact</span><div class="input-unit"><input name="priceImpactPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label class="full"><span>Execution delay</span><div class="input-unit"><input name="executionDelayMs" type="number" min="0" max="60000" step="1"><b>ms</b></div></label>
+          </div>
+        </section>
+
+        <section class="panel settings-card settings-order-4">
+          <div class="section-title"><span>04</span><div><h2>Rynek</h2><p>Płynność, wolumen i liczba transakcji z ostatnich 5 minut.</p></div></div>
+          <div class="field-grid">
+            <label><span>Min. płynność</span><div class="input-unit"><input name="minLiquidityUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Maks. płynność</span><div class="input-unit"><input name="maxLiquidityUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Min. wolumen 5 min</span><div class="input-unit"><input name="minVolume5mUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Maks. wolumen 5 min</span><div class="input-unit"><input name="maxVolume5mUsd" type="number" min="0" step="any"><b>USD</b></div></label>
+            <label><span>Min. transakcje 5 min</span><input name="minTransactions5m" type="number" min="0" step="any"></label>
+            <label><span>Maks. transakcje 5 min</span><input name="maxTransactions5m" type="number" min="0" step="any"></label>
+          </div>
+        </section>
+
+        <section class="panel settings-card settings-order-5">
+          <div class="section-title"><span>05</span><div><h2>Aktywność kupujących</h2><p>Kierunek transakcji i tempo zmiany ceny.</p></div></div>
+          <div class="field-grid">
+            <label><span>Min. kupna 5 min</span><input name="minBuys5m" type="number" min="0" step="1"></label>
+            <label><span>Maks. kupna 5 min</span><input name="maxBuys5m" type="number" min="0" step="1"></label>
+            <label><span>Min. sprzedaże 5 min</span><input name="minSells5m" type="number" min="0" step="1"></label>
+            <label><span>Maks. sprzedaże 5 min</span><input name="maxSells5m" type="number" min="0" step="1"></label>
+            <label><span>Min. udział kupna</span><div class="input-unit"><input name="minBuyRatio5mPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Maks. udział kupna</span><div class="input-unit"><input name="maxBuyRatio5mPercent" type="number" min="0" max="100" step="any"><b>%</b></div></label>
+            <label><span>Min. zmiana 5 min</span><div class="input-unit"><input name="minPriceChange5m" type="number" step="any"><b>%</b></div></label>
+            <label><span>Maks. zmiana 5 min</span><div class="input-unit"><input name="maxPriceChange5m" type="number" step="any"><b>%</b></div></label>
+            <label><span>Min. momentum</span><div class="input-unit"><input name="minMomentum" type="number" step="any"><b>%</b></div></label>
+            <label><span>Maks. momentum</span><div class="input-unit"><input name="maxMomentum" type="number" step="any"><b>%</b></div></label>
+          </div>
+        </section>
+      </form>
+    </section>
+  </main>
+  <dialog id="createWalletDialog" class="create-wallet-dialog">
+    <form id="createWalletForm" method="dialog">
+      <h2>Nowy portfel paper</h2>
+      <label>Nazwa<input id="newWalletName" maxlength="50" placeholder="Np. Strategia A" required></label>
+      <label>Saldo początkowe · USD<input id="newWalletBalance" type="number" min="0.01" step="any" value="1000" required></label>
+      <label class="check"><input id="cloneSettings" type="checkbox" checked><span><b>Skopiuj ustawienia obecnego bota</b><small>Nowy bot będzie potem działał niezależnie.</small></span></label>
+      <div class="dialog-actions"><button id="cancelCreateWallet" class="button ghost" type="button">Anuluj</button><button class="button accent" type="submit">Utwórz portfel</button></div>
+      <p id="createWalletError" class="message error" role="alert"></p>
+    </form>
+  </dialog>
+  <script src="./frontend-config.js"></script>
+  <script src="./connection.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
